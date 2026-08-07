@@ -749,7 +749,7 @@
       Setelah user klik "Perbarui Sekarang", WebView memuat URL baru
       tanpa perlu clear cache. Data arisan tetap di localStorage.
     */
-    const UPDATE_JSON_URL = 'https://raw.githubusercontent.com/USERNAME/REPO/main/version.json';
+    const UPDATE_JSON_URL = 'https://alwan281.github.io/Arisan-PKS-02/version.json';
     // Contoh: 'https://raw.githubusercontent.com/namaanda/arisan-pks02/main/version.json'
 
     let currentRole = null;
@@ -815,14 +815,14 @@
        Firebase Console → Project Settings → Your apps → Config
        Wajib isi apiKey + databaseURL (Realtime Database)
     ===== */
-    const FIREBASE_CONFIG = {
-      apiKey: "PASTE_API_KEY",
-      authDomain: "PASTE_PROJECT.firebaseapp.com",
-      databaseURL: "https://PASTE_PROJECT-default-rtdb.firebaseio.com",
-      projectId: "PASTE_PROJECT_ID",
-      storageBucket: "PASTE_PROJECT.appspot.com",
-      messagingSenderId: "PASTE_SENDER_ID",
-      appId: "PASTE_APP_ID"
+    const firebaseConfig = {
+  apiKey: "AIzaSyBSlwi8HMGEBvXodHRSChzBUCkQOxyNUh0",
+  authDomain: "arisan-pks-02.firebaseapp.com",
+  projectId: "arisan-pks-02",
+  storageBucket: "arisan-pks-02.firebasestorage.app",
+  messagingSenderId: "857668901977",
+  appId: "1:857668901977:web:322313916bc49be2b8a548",
+  measurementId: "G-6SSDCCWE0L"
     };
 
     function getFirebaseConfig() {
