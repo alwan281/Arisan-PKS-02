@@ -687,6 +687,7 @@
               </p>
               <button class="btn btn-blue btn-sm" onclick="checkForUpdate(true)">🔍 Cek Update</button>
             </div>
+
           </div>
 
           <div id="peserta-settings" class="hidden">
@@ -732,6 +733,10 @@
 
   <div class="toast" id="toast"></div>
 
+  <!-- Firebase SDK (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
   <script>
     /* ========== APP VERSION & UPDATE CONFIG ========== */
     const APP_VERSION = '1.1.0';
@@ -744,8 +749,8 @@
       Setelah user klik "Perbarui Sekarang", WebView memuat URL baru
       tanpa perlu clear cache. Data arisan tetap di localStorage.
     */
-    const UPDATE_JSON_URL = 'https://alwan281.github.io/Arisan-PKS-02/version.json';
-    // Contoh: 'https://raw.githubusercontent.com/namaanda/arisan-pks02/version.json'
+    const UPDATE_JSON_URL = 'https://raw.githubusercontent.com/USERNAME/REPO/main/version.json';
+    // Contoh: 'https://raw.githubusercontent.com/namaanda/arisan-pks02/main/version.json'
 
     let currentRole = null;
     let currentUser = null;
@@ -779,8 +784,15 @@
       '#0891b2','#06b6d4','#0284c7','#0369a1','#3b82f6','#6366f1'
     ];
 
-    /* STORAGE */
+    /* STORAGE + FIREBASE */
     const memoryStore = {};
+    let firebaseApp = null;
+    let firebaseDb = null;
+    let firebaseReady = false;
+    let firebaseApplyingRemote = false; // cegah loop saat terima data remote
+    let firebaseUnsub = null;
+    const FB_PATH = 'arisan_pks02'; // root path di Realtime Database
+
     function canUseLS() {
       try {
         const k = '__t__';
@@ -797,6 +809,111 @@
     function sSet(k, v) {
       if (hasLS) { try { localStorage.setItem(k, v); return; } catch (e) {} }
       memoryStore[k] = v;
+    }
+
+    /* ===== FIREBASE CONFIG — tempel dari Firebase Console di sini =====
+       Firebase Console → Project Settings → Your apps → Config
+       Wajib isi apiKey + databaseURL (Realtime Database)
+    ===== */
+    const FIREBASE_CONFIG = {
+      apiKey: "PASTE_API_KEY",
+      authDomain: "PASTE_PROJECT.firebaseapp.com",
+      databaseURL: "https://PASTE_PROJECT-default-rtdb.firebaseio.com",
+      projectId: "PASTE_PROJECT_ID",
+      storageBucket: "PASTE_PROJECT.appspot.com",
+      messagingSenderId: "PASTE_SENDER_ID",
+      appId: "PASTE_APP_ID"
+    };
+
+    function getFirebaseConfig() {
+      var cfg = FIREBASE_CONFIG;
+      // Aktif hanya jika sudah diganti dari placeholder
+      if (!cfg || !cfg.apiKey || cfg.apiKey.indexOf('PASTE_') === 0) return null;
+      if (!cfg.databaseURL || cfg.databaseURL.indexOf('PASTE_') !== -1) return null;
+      return cfg;
+    }
+
+
+    function initFirebase() {
+      var cfg = getFirebaseConfig();
+      if (!cfg) {
+        firebaseReady = false;
+        return false;
+      }
+      if (typeof firebase === 'undefined') {
+        firebaseReady = false;
+        console.warn('Firebase SDK gagal dimuat');
+        return false;
+      }
+      try {
+        if (!firebase.apps.length) {
+          firebaseApp = firebase.initializeApp(cfg);
+        } else {
+          firebaseApp = firebase.app();
+        }
+        firebaseDb = firebase.database();
+        firebaseReady = true;
+        console.log('Firebase terhubung:', cfg.projectId || 'ok');
+        return true;
+      } catch (err) {
+        firebaseReady = false;
+        console.warn('Firebase init gagal:', err.message || err);
+        return false;
+      }
+    }
+
+
+
+
+    function applyRemotePayload(data) {
+      if (!data) return;
+      firebaseApplyingRemote = true;
+      try {
+        if (Array.isArray(data.peserta)) peserta = data.peserta;
+        if (Array.isArray(data.winners)) winners = data.winners;
+        if (data.accounts && data.accounts.ketua) accounts = data.accounts;
+        if (data.settings) settings = Object.assign({}, settings, data.settings);
+        // Simpan juga ke lokal sebagai cache
+        sSet('arisan_peserta', JSON.stringify(peserta));
+        sSet('arisan_winners', JSON.stringify(winners));
+        sSet('arisan_accounts', JSON.stringify(accounts));
+        sSet('arisan_settings', JSON.stringify(settings));
+        if (currentRole) renderAll();
+      } finally {
+        firebaseApplyingRemote = false;
+      }
+    }
+
+    function startFirebaseSync() {
+      if (!firebaseReady || !firebaseDb) return;
+      try {
+        if (firebaseUnsub) { firebaseUnsub(); firebaseUnsub = null; }
+        var ref = firebaseDb.ref(FB_PATH + '/data');
+        var handler = function (snap) {
+          var val = snap.val();
+          if (!val) return;
+          applyRemotePayload(val);
+        };
+        ref.on('value', handler);
+        firebaseUnsub = function () { ref.off('value', handler); };
+      } catch (e) {
+        setFbStatus('Sync error: ' + e.message, '#dc2626');
+      }
+    }
+
+    function pushToFirebase() {
+      if (!firebaseReady || !firebaseDb || firebaseApplyingRemote) return;
+      var payload = {
+        peserta: peserta,
+        winners: winners,
+        accounts: accounts,
+        settings: settings,
+        updatedAt: new Date().toISOString()
+      };
+      firebaseDb.ref(FB_PATH + '/data').set(payload).catch(function (err) {
+        console.warn('Firebase push error', err);
+        setFbStatus('Gagal sync: ' + err.message, '#dc2626');
+      });
     }
 
     function loadData() {
@@ -822,6 +939,8 @@
       sSet('arisan_winners', JSON.stringify(winners));
       sSet('arisan_accounts', JSON.stringify(accounts));
       sSet('arisan_settings', JSON.stringify(settings));
+      // Sinkron ke Firebase jika aktif
+      pushToFirebase();
     }
 
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -918,6 +1037,10 @@
       slotCount = 1;
       document.getElementById('input-slot').value = 1;
       loadData();
+      // Firebase: init + realtime sync
+      if (initFirebase()) {
+        startFirebaseSync();
+      }
       renderAll();
       checkForUpdate(false);
     }
@@ -1780,6 +1903,8 @@
     document.getElementById('peserta-pass').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') doLoginPeserta();
     });
+    // Firebase init (jika config sudah tersimpan)
+    try { initFirebase(); } catch (e) {}
     // Cek update saat halaman dibuka
     checkForUpdate(false);
   </script>
