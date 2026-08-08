@@ -34,6 +34,28 @@
     }
 
     /* UPDATE BANNER */
+    .update-loading{
+      display:none;position:fixed;inset:0;z-index:4000;
+      background:rgba(15,23,42,.72);backdrop-filter:blur(8px);
+      align-items:center;justify-content:center;flex-direction:column;gap:16px;
+    }
+    .update-loading.show{display:flex}
+    .update-loading .ul-card{
+      background:#fff;border-radius:20px;padding:28px 24px;width:min(320px,90vw);
+      text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.25);
+    }
+    .update-loading .ul-title{font-weight:800;font-size:1.05rem;color:#0f766e;margin-bottom:6px}
+    .update-loading .ul-sub{font-size:.8rem;color:#64748b;margin-bottom:16px}
+    .update-loading .ul-bar{
+      height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden;
+    }
+    .update-loading .ul-fill{
+      height:100%;width:0%;border-radius:999px;
+      background:linear-gradient(90deg,#14b8a6,#0d9488,#0891b2);
+      transition:width .15s linear;
+    }
+    .update-loading .ul-pct{font-weight:800;font-size:1.4rem;color:#0f172a;margin-top:12px}
+
     .update-banner{
       display:none;position:fixed;top:0;left:0;right:0;z-index:3000;
       background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff;
@@ -429,6 +451,16 @@
     </div>
   </div>
 
+  <!-- UPDATE LOADING 0-100% -->
+  <div class="update-loading" id="update-loading">
+    <div class="ul-card">
+      <div class="ul-title">Mengunduh pembaruan</div>
+      <div class="ul-sub" id="ul-sub">Menyiapkan versi terbaru...</div>
+      <div class="ul-bar"><div class="ul-fill" id="ul-fill"></div></div>
+      <div class="ul-pct"><span id="ul-pct">0</span>%</div>
+    </div>
+  </div>
+
   <!-- LOGIN -->
   <div id="login-page">
     <div class="login-card">
@@ -465,7 +497,7 @@
         <button class="btn btn-primary" onclick="doLoginPeserta()">Masuk sebagai Peserta</button>
       </div>
 
-      <p class="version-tag">v<span id="app-version-label">1.1.0</span></p>
+      <p class="version-tag">v<span id="app-version-label">1.1.2</span></p>
     </div>
   </div>
 
@@ -683,7 +715,7 @@
             <div class="settings-section">
               <h3>🔄 Cek Pembaruan Aplikasi</h3>
               <p style="font-size:.85rem;color:var(--slate-500);margin-bottom:12px">
-                Versi saat ini: <strong id="current-ver">1.1.0</strong>
+                Versi saat ini: <strong id="current-ver">1.1.2</strong>
               </p>
               <button class="btn btn-blue btn-sm" onclick="checkForUpdate(true)">🔍 Cek Update</button>
             </div>
@@ -739,18 +771,13 @@
 
   <script>
     /* ========== APP VERSION & UPDATE CONFIG ========== */
-    const APP_VERSION = '1.1.1';
+    const APP_VERSION = '1.1.2';
     /*
-      === PANDUAN UPDATE (GitHub / AppCreator24) ===
-      1. Upload version.json ke GitHub (raw URL) atau hosting
-      2. Isi UPDATE_JSON_URL di bawah dengan URL raw version.json
-      3. Naikkan "version" di JSON saat ada update
-      4. "url" = link file HTML terbaru (raw GitHub / hosting)
-      Setelah user klik "Perbarui Sekarang", WebView memuat URL baru
-      tanpa perlu clear cache. Data arisan tetap di localStorage.
+      === PANDUAN UPDATE ===
+      version.json → cek versi
+      url di JSON HARUS ke file HTML (index.html), BUKAN ke version.json
     */
     const UPDATE_JSON_URL = 'https://alwan281.github.io/Arisan-PKS-02/version.json';
-    // Contoh: 'https://raw.githubusercontent.com/namaanda/arisan-pks02/main/version.json'
 
     let currentRole = null;
     let currentUser = null;
@@ -784,14 +811,14 @@
       '#0891b2','#06b6d4','#0284c7','#0369a1','#3b82f6','#6366f1'
     ];
 
-    /* STORAGE + FIREBASE */
+    /* STORAGE + FIREBASE (Realtime Database) */
     const memoryStore = {};
     let firebaseApp = null;
     let firebaseDb = null;
     let firebaseReady = false;
-    let firebaseApplyingRemote = false; // cegah loop saat terima data remote
+    let firebaseApplyingRemote = false;
     let firebaseUnsub = null;
-    const FB_PATH = 'arisan_pks02'; // root path di Realtime Database
+    const FB_PATH = 'arisan_pks02';
 
     function canUseLS() {
       try {
@@ -811,28 +838,26 @@
       memoryStore[k] = v;
     }
 
-    /* ===== FIREBASE CONFIG — tempel dari Firebase Console di sini =====
-       Firebase Console → Project Settings → Your apps → Config
-       Wajib isi apiKey + databaseURL (Realtime Database)
+    /* ===== FIREBASE CONFIG (Realtime Database) — tempel dari Console =====
+       Project Settings → Your apps → Config
+       Wajib: apiKey + databaseURL + projectId
     ===== */
-    const firebaseConfig = {
-  apiKey: "AIzaSyBSlwi8HMGEBvXodHRSChzBUCkQOxyNUh0",
-  authDomain: "arisan-pks-02.firebaseapp.com",
-  projectId: "arisan-pks-02",
-  storageBucket: "arisan-pks-02.firebasestorage.app",
-  messagingSenderId: "857668901977",
-  appId: "1:857668901977:web:322313916bc49be2b8a548",
-  measurementId: "G-6SSDCCWE0L"
+    const FIREBASE_CONFIG = {
+      apiKey: "PASTE_API_KEY",
+      authDomain: "PASTE_PROJECT.firebaseapp.com",
+      databaseURL: "https://PASTE_PROJECT-default-rtdb.firebaseio.com",
+      projectId: "PASTE_PROJECT_ID",
+      storageBucket: "PASTE_PROJECT.appspot.com",
+      messagingSenderId: "PASTE_SENDER_ID",
+      appId: "PASTE_APP_ID"
     };
 
     function getFirebaseConfig() {
       var cfg = FIREBASE_CONFIG;
-      // Aktif hanya jika sudah diganti dari placeholder
       if (!cfg || !cfg.apiKey || cfg.apiKey.indexOf('PASTE_') === 0) return null;
-      if (!cfg.databaseURL || cfg.databaseURL.indexOf('PASTE_') !== -1) return null;
+      if (!cfg.databaseURL || String(cfg.databaseURL).indexOf('PASTE_') !== -1) return null;
       return cfg;
     }
-
 
     function initFirebase() {
       var cfg = getFirebaseConfig();
@@ -853,7 +878,7 @@
         }
         firebaseDb = firebase.database();
         firebaseReady = true;
-        console.log('Firebase terhubung:', cfg.projectId || 'ok');
+        console.log('Realtime Database terhubung:', cfg.projectId || 'ok');
         return true;
       } catch (err) {
         firebaseReady = false;
@@ -861,9 +886,6 @@
         return false;
       }
     }
-
-
-
 
     function applyRemotePayload(data) {
       if (!data) return;
@@ -873,7 +895,6 @@
         if (Array.isArray(data.winners)) winners = data.winners;
         if (data.accounts && data.accounts.ketua) accounts = data.accounts;
         if (data.settings) settings = Object.assign({}, settings, data.settings);
-        // Simpan juga ke lokal sebagai cache
         sSet('arisan_peserta', JSON.stringify(peserta));
         sSet('arisan_winners', JSON.stringify(winners));
         sSet('arisan_accounts', JSON.stringify(accounts));
@@ -897,7 +918,7 @@
         ref.on('value', handler);
         firebaseUnsub = function () { ref.off('value', handler); };
       } catch (e) {
-        setFbStatus('Sync error: ' + e.message, '#dc2626');
+        console.warn('RTDB sync init error', e);
       }
     }
 
@@ -911,8 +932,7 @@
         updatedAt: new Date().toISOString()
       };
       firebaseDb.ref(FB_PATH + '/data').set(payload).catch(function (err) {
-        console.warn('Firebase push error', err);
-        setFbStatus('Gagal sync: ' + err.message, '#dc2626');
+        console.warn('RTDB push error', err);
       });
     }
 
@@ -1337,22 +1357,79 @@
       return 0;
     }
 
+    function resolveUpdateHtmlUrl(url) {
+      if (!url) return '';
+      var u = String(url).trim();
+      // Jika keliru mengarah ke version.json / file .json → ganti ke index.html
+      if (/version\.json/i.test(u) || /\.json(\?|$)/i.test(u)) {
+        u = u.replace(/\/[^\/]*version\.json.*$/i, '/index.html');
+        u = u.replace(/\/[^\/]+\.json(\?.*)?$/i, '/index.html');
+      }
+      // Pastikan ada cache-bust
+      u += (u.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent((pendingUpdate && pendingUpdate.version) || APP_VERSION) + '&t=' + Date.now();
+      return u;
+    }
+
+    function showUpdateProgress(pct, sub) {
+      var box = document.getElementById('update-loading');
+      var fill = document.getElementById('ul-fill');
+      var pctEl = document.getElementById('ul-pct');
+      var subEl = document.getElementById('ul-sub');
+      if (box) box.classList.add('show');
+      if (fill) fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+      if (pctEl) pctEl.textContent = String(Math.round(pct));
+      if (subEl && sub) subEl.textContent = sub;
+    }
+
     function doUpdate() {
-      if (!pendingUpdate || !pendingUpdate.url) {
-        toast('URL unduhan tidak tersedia', 'error');
+      if (!pendingUpdate) {
+        toast('Tidak ada data update', 'error');
         return;
       }
-      // Tandai versi sudah diterima agar banner tidak muncul lagi
+      var rawUrl = pendingUpdate.url || '';
+      // Fallback: folder yang sama dengan version.json + index.html
+      if (!rawUrl && UPDATE_JSON_URL) {
+        rawUrl = UPDATE_JSON_URL.replace(/version\.json.*$/i, 'index.html');
+      }
+      if (!rawUrl) {
+        toast('URL unduhan tidak tersedia. Perbaiki field url di version.json agar mengarah ke index.html', 'error');
+        return;
+      }
+
+      var target = resolveUpdateHtmlUrl(rawUrl);
+      // Validasi: jangan buka JSON
+      if (/\.json(\?|$)/i.test(target.split('?')[0])) {
+        toast('URL update masih mengarah ke JSON. Ubah url di version.json ke index.html', 'error');
+        return;
+      }
+
       setAcceptedVersion(pendingUpdate.version || APP_VERSION);
-      // Muat HTML baru di WebView yang sama (AppCreator24) — tanpa clear cache
-      // cache-bust query agar file baru langsung terambil
-      var url = pendingUpdate.url;
-      url += (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(pendingUpdate.version || '') + '&t=' + Date.now();
-      window.location.href = url;
+      document.getElementById('update-banner').classList.remove('show');
+      document.body.style.paddingTop = '0';
+
+      // Loading 0→100% di tengah, lalu pindah ke HTML baru (tanpa clear cache)
+      showUpdateProgress(0, 'Menghubungkan server...');
+      var pct = 0;
+      var timer = setInterval(function () {
+        pct += Math.random() * 12 + 4;
+        if (pct >= 92) {
+          pct = 92;
+          clearInterval(timer);
+          showUpdateProgress(92, 'Memasang versi ' + (pendingUpdate.version || '') + '...');
+          // Prefetch HTML baru lalu redirect
+          fetch(target, { cache: 'no-store', mode: 'cors' }).catch(function () {}).finally(function () {
+            showUpdateProgress(100, 'Selesai! Membuka aplikasi...');
+            setTimeout(function () {
+              window.location.replace(target);
+            }, 350);
+          });
+          return;
+        }
+        var msg = pct < 30 ? 'Mengunduh paket update...' : (pct < 70 ? 'Memverifikasi file...' : 'Menyiapkan instalasi...');
+        showUpdateProgress(pct, msg);
+      }, 180);
     }
     function dismissUpdate() {
-      // Tunda: banner hilang sesi ini, tapi muncul lagi saat login berikutnya
-      // (tidak set accepted version)
       document.getElementById('update-banner').classList.remove('show');
       document.body.style.paddingTop = '0';
       toast('Update ditunda. Akan muncul lagi saat login berikutnya.', 'warning');
