@@ -1,8 +1,8 @@
 {
-  "version": "1.1.1",
+  "version": "1.1.2",
   "message": "Update Arisan PKS-02 tersedia",
-  "changelog": "Riwayat total, filter putar sudah bayar, UI mobile, jadwal auto-hide",
-  "url": "https://alwan281.github.io/Arisan-PKS-02/version.json",
+  "changelog": "Perbaikan tombol update, loading 0-100%, Firebase RTDB",
+  "url": "https://alwan281.github.io/Arisan-PKS-02/index.html",
   "force": false,
-  "releasedAt": "2026-08-06"
+  "releasedAt": "2026-08-08"
 }
