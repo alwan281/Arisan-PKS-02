@@ -497,7 +497,7 @@
         <button class="btn btn-primary" onclick="doLoginPeserta()">Masuk sebagai Peserta</button>
       </div>
 
-      <p class="version-tag">v<span id="app-version-label">1.1.3</span></p>
+      <p class="version-tag">v<span id="app-version-label">1.1.5</span></p>
     </div>
   </div>
 
@@ -715,7 +715,7 @@
             <div class="settings-section">
               <h3>🔄 Cek Pembaruan Aplikasi</h3>
               <p style="font-size:.85rem;color:var(--slate-500);margin-bottom:12px">
-                Versi saat ini: <strong id="current-ver">1.1.3</strong>
+                Versi saat ini: <strong id="current-ver">1.1.5</strong>
               </p>
               <button class="btn btn-blue btn-sm" onclick="checkForUpdate(true)">🔍 Cek Update</button>
             </div>
@@ -773,11 +773,12 @@
     /* ========== APP VERSION & UPDATE CONFIG ========== */
     const APP_VERSION = '1.1.5';
     /*
-      === PANDUAN UPDATE ===
-      version.json → cek versi
-      url di JSON HARUS ke file HTML (index.html), BUKAN ke version.json
+      === PANDUAN UPDATE (AppCreator24) ===
+      version.json → cek versi; url HARUS ke index.html
+      Setelah update, app selalu buka HOSTED_APP_URL (agar tidak kembali ke bundle lama)
     */
     const UPDATE_JSON_URL = 'https://alwan281.github.io/Arisan-PKS-02/version.json';
+    const HOSTED_APP_URL = 'https://alwan281.github.io/Arisan-PKS-02/index.html';
 
     let currentRole = null;
     let currentUser = null;
@@ -818,7 +819,7 @@
     let firebaseReady = false;
     let firebaseApplyingRemote = false;
     let firebaseUnsub = null;
-    const FB_PATH = 'arisan_pks02';
+    const FB_PATH = 'pks-02';
 
     function canUseLS() {
       try {
@@ -842,15 +843,14 @@
        Project Settings → Your apps → Config
        Wajib: apiKey + databaseURL + projectId
     ===== */
-    const firebaseConfig = {
-  apiKey: "AIzaSyBSlwi8HMGEBvXodHRSChzBUCkQOxyNUh0",
-  authDomain: "arisan-pks-02.firebaseapp.com",
-  databaseURL: "https://arisan-pks-02-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "arisan-pks-02",
-  storageBucket: "arisan-pks-02.firebasestorage.app",
-  messagingSenderId: "857668901977",
-  appId: "1:857668901977:web:322313916bc49be2b8a548",
-  measurementId: "G-6SSDCCWE0L"
+    const FIREBASE_CONFIG = {
+      apiKey: "PASTE_API_KEY",
+      authDomain: "PASTE_PROJECT.firebaseapp.com",
+      databaseURL: "https://PASTE_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "PASTE_PROJECT_ID",
+      storageBucket: "PASTE_PROJECT.appspot.com",
+      messagingSenderId: "PASTE_SENDER_ID",
+      appId: "PASTE_APP_ID"
     };
 
     function getFirebaseConfig() {
@@ -926,15 +926,17 @@
     function pushToFirebase() {
       if (!firebaseReady || !firebaseDb || firebaseApplyingRemote) return;
       var payload = {
-        peserta: peserta,
-        winners: winners,
-        accounts: accounts,
-        settings: settings,
+        peserta: peserta || [],
+        winners: winners || [],
+        accounts: accounts || {},
+        settings: settings || {},
         updatedAt: new Date().toISOString()
       };
-      firebaseDb.ref(FB_PATH + '/data').set(payload).catch(function (err) {
-        console.warn('RTDB push error', err);
-      });
+      firebaseDb.ref(FB_PATH + '/data').set(payload)
+        .then(function () { console.log('RTDB sync ok →', FB_PATH + '/data'); })
+        .catch(function (err) {
+          console.warn('RTDB push error', err);
+        });
     }
 
     function loadData() {
@@ -1293,7 +1295,7 @@
     }
 
     /* UPDATE CHECK */
-    /* ===== UPDATE SYSTEM (bersih, tidak spam banner) ===== */
+    /* ===== UPDATE SYSTEM (sticky — tidak kembali ke bundle lama) ===== */
     var updateDismissedThisSession = false;
 
     function getAcceptedVersion() {
@@ -1301,6 +1303,32 @@
     }
     function setAcceptedVersion(v) {
       sSet('arisan_accepted_version', v || '');
+    }
+
+    function isRunningHosted() {
+      try {
+        var h = String(location.href || '');
+        return /github\.io/i.test(h) || /alwan281/i.test(h);
+      } catch (e) { return false; }
+    }
+
+    function applyStickyUpdateRedirect() {
+      // AppCreator24 memuat HTML lokal (versi lama) setiap buka app.
+      // Jika user sudah update, paksa buka HTML hosting agar tidak turun versi.
+      try {
+        var accepted = getAcceptedVersion();
+        if (!accepted) return false;
+        if (compareVersion(accepted, APP_VERSION) <= 0) return false;
+        if (isRunningHosted()) return false; // sudah di hosting
+        var updateUrl = sGet('arisan_update_url') || HOSTED_APP_URL;
+        if (!updateUrl) return false;
+        var target = updateUrl;
+        target += (target.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(accepted) + '&sticky=1&t=' + Date.now();
+        window.location.replace(target);
+        return true;
+      } catch (e) {
+        return false;
+      }
     }
 
     function checkForUpdate(manual) {
@@ -1414,9 +1442,13 @@
         return;
       }
 
-      setAcceptedVersion(pendingUpdate.version || APP_VERSION);
-      document.getElementById('update-banner').classList.remove('show');
-      document.body.style.paddingTop = '0';
+      var ver = pendingUpdate.version || APP_VERSION;
+      setAcceptedVersion(ver);
+      // Simpan URL HTML final agar saat buka app lagi (bundle lama) auto-redirect
+      var saveUrl = resolveUpdateHtmlUrl(rawUrl).split('?')[0];
+      sSet('arisan_update_url', saveUrl || HOSTED_APP_URL);
+      sSet('arisan_accepted_version', ver);
+      hideUpdateBanner();
 
       // Loading 0→100% di tengah, lalu pindah ke HTML baru (tanpa clear cache)
       showUpdateProgress(0, 'Menghubungkan server...');
@@ -1979,22 +2011,28 @@
 
     /* INIT */
     document.getElementById('app-version-label').textContent = APP_VERSION;
-    window.addEventListener('resize', function () {
-      if (document.getElementById('tab-putar').classList.contains('active')) drawWheel();
-    });
-    document.getElementById('input-nama').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') addPeserta();
-    });
-    document.getElementById('ketua-pass').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') doLoginKetua();
-    });
-    document.getElementById('peserta-pass').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') doLoginPeserta();
-    });
-    // Firebase init (jika config sudah tersimpan)
-    try { initFirebase(); } catch (e) {}
-    // Cek update saat halaman dibuka
-    checkForUpdate(false);
+    // Jika sudah pernah update, jangan kembali ke bundle lama (AppCreator24)
+    if (typeof applyStickyUpdateRedirect === 'function' && applyStickyUpdateRedirect()) {
+      // sedang redirect ke hosting — hentikan init lokal
+    } else {
+      window.addEventListener('resize', function () {
+        if (document.getElementById('tab-putar').classList.contains('active')) drawWheel();
+      });
+      document.getElementById('input-nama').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') addPeserta();
+      });
+      document.getElementById('ketua-pass').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') doLoginKetua();
+      });
+      document.getElementById('peserta-pass').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') doLoginPeserta();
+      });
+      // Firebase Realtime Database
+      try {
+        if (initFirebase()) startFirebaseSync();
+      } catch (e) { console.warn(e); }
+      checkForUpdate(false);
+    }
   </script>
 </body>
 </html>
