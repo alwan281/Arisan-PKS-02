@@ -497,7 +497,7 @@
         <button class="btn btn-primary" onclick="doLoginPeserta()">Masuk sebagai Peserta</button>
       </div>
 
-      <p class="version-tag">v<span id="app-version-label">1.1.2</span></p>
+      <p class="version-tag">v<span id="app-version-label">1.1.3</span></p>
     </div>
   </div>
 
@@ -715,7 +715,7 @@
             <div class="settings-section">
               <h3>🔄 Cek Pembaruan Aplikasi</h3>
               <p style="font-size:.85rem;color:var(--slate-500);margin-bottom:12px">
-                Versi saat ini: <strong id="current-ver">1.1.2</strong>
+                Versi saat ini: <strong id="current-ver">1.1.3</strong>
               </p>
               <button class="btn btn-blue btn-sm" onclick="checkForUpdate(true)">🔍 Cek Update</button>
             </div>
@@ -842,14 +842,14 @@
        Project Settings → Your apps → Config
        Wajib: apiKey + databaseURL + projectId
     ===== */
-    const firebaseConfig = {
-  apiKey: "AIzaSyBSlwi8HMGEBvXodHRSChzBUCkQOxyNUh0",
-  authDomain: "arisan-pks-02.firebaseapp.com",
-  projectId: "arisan-pks-02",
-  storageBucket: "arisan-pks-02.firebasestorage.app",
-  messagingSenderId: "857668901977",
-  appId: "1:857668901977:web:322313916bc49be2b8a548",
-  measurementId: "G-6SSDCCWE0L"
+    const FIREBASE_CONFIG = {
+      apiKey: "PASTE_API_KEY",
+      authDomain: "PASTE_PROJECT.firebaseapp.com",
+      databaseURL: "https://PASTE_PROJECT-default-rtdb.firebaseio.com",
+      projectId: "PASTE_PROJECT_ID",
+      storageBucket: "PASTE_PROJECT.appspot.com",
+      messagingSenderId: "PASTE_SENDER_ID",
+      appId: "PASTE_APP_ID"
     };
 
     function getFirebaseConfig() {
@@ -1292,11 +1292,14 @@
     }
 
     /* UPDATE CHECK */
+    /* ===== UPDATE SYSTEM (bersih, tidak spam banner) ===== */
+    var updateDismissedThisSession = false;
+
     function getAcceptedVersion() {
-      return sGet('arisan_accepted_version') || APP_VERSION;
+      return sGet('arisan_accepted_version') || '';
     }
     function setAcceptedVersion(v) {
-      sSet('arisan_accepted_version', v);
+      sSet('arisan_accepted_version', v || '');
     }
 
     function checkForUpdate(manual) {
@@ -1305,8 +1308,11 @@
       if (verEl) verEl.textContent = APP_VERSION;
       if (curEl) curEl.textContent = APP_VERSION;
 
+      // Jangan tampilkan lagi di sesi ini setelah "Nanti"
+      if (!manual && updateDismissedThisSession) return;
+
       if (!UPDATE_JSON_URL || UPDATE_JSON_URL.indexOf('USERNAME') !== -1) {
-        if (manual) toast('URL update belum dikonfigurasi. Edit UPDATE_JSON_URL di kode.', 'warning');
+        if (manual) toast('URL update belum dikonfigurasi.', 'warning');
         return;
       }
 
@@ -1317,29 +1323,27 @@
         })
         .then(function (data) {
           if (!data || !data.version) return;
-          var accepted = getAcceptedVersion();
-          // Tampilkan jika versi remote lebih baru DARI versi yang sudah di-accept user
-          // (jika user klik Tunda, accepted masih versi lama → muncul lagi saat login)
-          if (compareVersion(data.version, accepted) > 0 || compareVersion(data.version, APP_VERSION) > 0) {
-            // Jika user sudah accept versi ini, jangan tampilkan
-            if (compareVersion(data.version, accepted) <= 0 && compareVersion(data.version, APP_VERSION) <= 0) {
-              if (manual) toast('Aplikasi sudah versi terbaru (v' + APP_VERSION + ')');
-              return;
-            }
-            // Show if remote > APP_VERSION (new build available)
-            if (compareVersion(data.version, APP_VERSION) > 0) {
-              pendingUpdate = data;
-              document.getElementById('update-msg').textContent =
-                (data.message || ('Versi ' + data.version + ' tersedia')) +
-                (data.changelog ? ' — ' + data.changelog : '');
-              document.getElementById('update-banner').classList.add('show');
-              document.body.style.paddingTop = '64px';
-            } else if (manual) {
-              toast('Aplikasi sudah versi terbaru (v' + APP_VERSION + ')');
-            }
-          } else if (manual) {
-            toast('Aplikasi sudah versi terbaru (v' + APP_VERSION + ')');
+
+          // Hanya bandingkan dengan versi HTML yang sedang berjalan
+          var remoteNewer = compareVersion(data.version, APP_VERSION) > 0;
+          if (!remoteNewer) {
+            // Sudah setara / lebih baru → pastikan accepted ikut, hilangkan banner
+            setAcceptedVersion(APP_VERSION);
+            hideUpdateBanner();
+            if (manual) toast('Aplikasi sudah versi terbaru (v' + APP_VERSION + ')');
+            return;
           }
+
+          // Remote lebih baru dari APP_VERSION
+          // Jika user sudah pernah "Perbarui" versi ini tapi HTML belum terganti,
+          // tetap tampilkan agar bisa update ulang — kecuali dismissed sesi ini
+          pendingUpdate = data;
+          var msg = (data.message || ('Versi ' + data.version + ' tersedia'));
+          if (data.changelog) msg += ' — ' + data.changelog;
+          var msgEl = document.getElementById('update-msg');
+          if (msgEl) msgEl.textContent = msg;
+          document.getElementById('update-banner').classList.add('show');
+          document.body.style.paddingTop = '64px';
         })
         .catch(function (err) {
           if (manual) toast('Gagal cek update: ' + err.message, 'error');
@@ -1347,14 +1351,20 @@
     }
 
     function compareVersion(a, b) {
-      var pa = String(a).split('.').map(Number);
-      var pb = String(b).split('.').map(Number);
+      var pa = String(a || '0').split('.').map(Number);
+      var pb = String(b || '0').split('.').map(Number);
       for (var i = 0; i < Math.max(pa.length, pb.length); i++) {
         var x = pa[i] || 0, y = pb[i] || 0;
         if (x > y) return 1;
         if (x < y) return -1;
       }
       return 0;
+    }
+
+    function hideUpdateBanner() {
+      var b = document.getElementById('update-banner');
+      if (b) b.classList.remove('show');
+      document.body.style.paddingTop = '0';
     }
 
     function resolveUpdateHtmlUrl(url) {
@@ -1430,9 +1440,9 @@
       }, 180);
     }
     function dismissUpdate() {
-      document.getElementById('update-banner').classList.remove('show');
-      document.body.style.paddingTop = '0';
-      toast('Update ditunda. Akan muncul lagi saat login berikutnya.', 'warning');
+      updateDismissedThisSession = true;
+      hideUpdateBanner();
+      toast('Update ditunda. Akan muncul lagi saat buka aplikasi berikutnya.', 'warning');
     }
 
     /* RENDER */
